@@ -27,40 +27,122 @@ Este repositório contém uma aplicação .NET 8 (API REST) completa, pronta par
 
 ## 🏗️ Arquitetura
 
+```mermaid
+graph TB
+    subgraph AWS["☁️ AWS Cloud"]
+        subgraph ECR["📦 Amazon ECR"]
+            IMG["🐳 fiapstore-api:latest<br/>Container Image"]
+        end
+        
+        subgraph EKS["☸️ Amazon EKS Cluster"]
+            subgraph VPC["🌐 VPC"]
+                subgraph NodeGroup["🖥️ Node Group (t3.medium)"]
+                    NODE1["Node 1"]
+                    NODE2["Node 2"]
+                end
+                
+                subgraph NS["📦 Namespace: fiap-store"]
+                    subgraph Resources["Kubernetes Resources"]
+                        CM["⚙️ ConfigMap<br/>fiapstore-config"]
+                        
+                        subgraph Deploy["🚀 Deployment"]
+                            POD1["Pod 1<br/>fiapstore-api"]
+                            POD2["Pod 2<br/>fiapstore-api"]
+                            POD3["Pod 3<br/>fiapstore-api"]
+                        end
+                        
+                        SVC["🔀 Service<br/>LoadBalancer<br/>Port 80"]
+                        HPA["📊 HPA<br/>Min: 2 | Max: 10<br/>Target: 50% CPU"]
+                    end
+                end
+                
+                LB["⚖️ AWS Load Balancer<br/>External IP"]
+            end
+        end
+    end
+    
+    USER["👤 Usuário"] -->|HTTP Request| LB
+    LB -->|Route Traffic| SVC
+    SVC -->|Distribute| POD1
+    SVC -->|Distribute| POD2
+    SVC -->|Distribute| POD3
+    
+    CM -.->|Environment Vars| POD1
+    CM -.->|Environment Vars| POD2
+    CM -.->|Environment Vars| POD3
+    
+    HPA -.->|Monitor & Scale| Deploy
+    
+    IMG -.->|Pull Image| POD1
+    IMG -.->|Pull Image| POD2
+    IMG -.->|Pull Image| POD3
+    
+    POD1 -.->|Running on| NODE1
+    POD2 -.->|Running on| NODE1
+    POD3 -.->|Running on| NODE2
+    
+    style AWS fill:#FF9900,stroke:#232F3E,stroke-width:3px,color:#fff
+    style EKS fill:#326CE5,stroke:#fff,stroke-width:2px,color:#fff
+    style ECR fill:#FF9900,stroke:#fff,stroke-width:2px,color:#fff
+    style NS fill:#326CE5,stroke:#fff,stroke-width:2px,color:#fff
+    style Deploy fill:#4CAF50,stroke:#fff,stroke-width:2px,color:#fff
+    style POD1 fill:#2196F3,stroke:#fff,stroke-width:2px,color:#fff
+    style POD2 fill:#2196F3,stroke:#fff,stroke-width:2px,color:#fff
+    style POD3 fill:#2196F3,stroke:#fff,stroke-width:2px,color:#fff
+    style SVC fill:#9C27B0,stroke:#fff,stroke-width:2px,color:#fff
+    style LB fill:#FF5722,stroke:#fff,stroke-width:2px,color:#fff
+    style HPA fill:#FF9800,stroke:#fff,stroke-width:2px,color:#fff
+    style CM fill:#607D8B,stroke:#fff,stroke-width:2px,color:#fff
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                         AWS Cloud                            │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │                    Amazon EKS                          │  │
-│  │  ┌─────────────────────────────────────────────────┐  │  │
-│  │  │          Namespace: fiap-store               │  │  │
-│  │  │                                                  │  │  │
-│  │  │  ┌──────────────────────────────────────────┐  │  │  │
-│  │  │  │     LoadBalancer Service                 │  │  │  │
-│  │  │  │         (Port 80)                        │  │  │  │
-│  │  │  └──────────────┬───────────────────────────┘  │  │  │
-│  │  │                 │                               │  │  │
-│  │  │  ┌──────────────▼───────────────────────────┐  │  │  │
-│  │  │  │     Deployment: fiapstore-api            │  │  │  │
-│  │  │  │     Replicas: 3                          │  │  │  │
-│  │  │  │  ┌─────┐  ┌─────┐  ┌─────┐              │  │  │  │
-│  │  │  │  │ Pod │  │ Pod │  │ Pod │              │  │  │  │
-│  │  │  │  │ API │  │ API │  │ API │              │  │  │  │
-│  │  │  │  └─────┘  └─────┘  └─────┘              │  │  │  │
-│  │  │  └──────────────────────────────────────────┘  │  │  │
-│  │  │                                                  │  │  │
-│  │  │  ┌──────────────────────────────────────────┐  │  │  │
-│  │  │  │     HPA: Auto Scaling                    │  │  │  │
-│  │  │  │     Min: 2 | Max: 10                     │  │  │  │
-│  │  │  └──────────────────────────────────────────┘  │  │  │
-│  │  └─────────────────────────────────────────────────┘  │  │
-│  └───────────────────────────────────────────────────────┘  │
-│                                                               │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │              Amazon ECR                                │  │
-│  │         (Container Registry)                           │  │
-│  └───────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+
+### 📋 Componentes da Arquitetura
+
+#### AWS Services
+- **Amazon EKS**: Kubernetes gerenciado
+- **Amazon ECR**: Registry privado de containers
+- **AWS Load Balancer**: Balanceamento de carga externo
+- **VPC**: Rede isolada para o cluster
+
+#### Kubernetes Resources
+- **Namespace**: `fiap-store` (isolamento lógico)
+- **Deployment**: 3 réplicas da aplicação
+- **Service**: LoadBalancer (expõe a aplicação)
+- **ConfigMap**: Variáveis de ambiente
+- **HPA**: Auto scaling (2-10 pods)
+
+#### Nodes
+- **Tipo**: t3.medium (2 vCPU, 4GB RAM)
+- **Quantidade**: 2 nodes
+- **OS**: Amazon Linux 2
+
+### 🔄 Fluxo de Deploy
+
+```mermaid
+sequenceDiagram
+    participant Dev as 👨‍💻 Desenvolvedor
+    participant Docker as 🐳 Docker
+    participant ECR as 📦 ECR
+    participant K8s as ☸️ Kubernetes
+    participant Pod as 🎯 Pod
+    participant User as 👤 Usuário
+    
+    Dev->>Docker: 1. docker build (AMD64)
+    Docker->>Docker: 2. Build multi-stage
+    Dev->>ECR: 3. docker push
+    ECR->>ECR: 4. Store image
+    
+    Dev->>K8s: 5. kubectl apply -f k8s/
+    K8s->>K8s: 6. Create resources
+    K8s->>ECR: 7. Pull image
+    ECR->>K8s: 8. Return image
+    K8s->>Pod: 9. Create pods (3x)
+    Pod->>Pod: 10. Health checks
+    Pod->>K8s: 11. Ready
+    K8s->>K8s: 12. Create LoadBalancer
+    
+    User->>K8s: 13. HTTP Request
+    K8s->>Pod: 14. Route to pod
+    Pod->>User: 15. Response
 ```
 
 ---
